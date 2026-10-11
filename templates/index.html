@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Counting</title>
+    <style>
+        :root { --bg: #0f1115; --surface: #1e2128; --text: #f0f0f0; --accent: #ff4757; }
+        body { margin: 0; padding: 0 0 60px 0; background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow-x: hidden; position: relative; }
+        
+        header { text-align: center; margin: 40px 0; animation: startupFade 0.8s ease-out; }
+        header h1 { margin: 0; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        header p { margin: 10px 0 0; color: #a0a0a0; font-size: 16px; animation: startupFade 1s ease-out; }
+        @keyframes startupFade { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .main-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1200px; padding: 0 20px; box-sizing: border-box; animation: startupFade 1.2s ease-out; flex: 1; position: relative;}
+        
+        .camera-container { position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 800px; aspect-ratio: 16/9; background: #000; border: 1px solid rgba(255,255,255,0.05); }
+        .camera-container img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .scanner { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: rgba(255, 71, 87, 0.5); box-shadow: 0 0 15px var(--accent); animation: scan 3s infinite linear; opacity: 0; transition: 0.3s; }
+        @keyframes scan { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        .camera-container.scanning .scanner { opacity: 1; }
+        
+        .status-overlay { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); padding: 8px 16px; border-radius: 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: 0.3s; z-index: 10; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+        .status-dot.active { background: #2ed573; box-shadow: 0 0 10px #2ed573; }
+        
+        .result-panel { background: var(--surface); border-radius: 20px; padding: 30px; min-width: 250px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255,255,255,0.05); position: relative;}
+        .result-panel.hidden { opacity: 0; transform: scale(0.95); pointer-events: none; }
+        .result-panel.changed { animation: numberChange 0.3s ease-out; }
+        @keyframes numberChange { 0% { opacity: 0.5; transform: scale(0.95) translateY(10px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        
+        .res-num { font-size: 90px; font-weight: 800; margin: 0; line-height: 1; color: var(--text); }
+        .res-char { font-size: 60px; color: var(--accent); margin: 10px 0; font-weight: bold; }
+        .res-pin { font-size: 24px; color: #a0a0a0; }
+        
+        .success-badge { margin-top: 15px; background: rgba(46, 213, 115, 0.1); color: #2ed573; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; opacity: 0; transition: 0.3s; border: 1px solid rgba(46, 213, 115, 0.3); }
+        .success-badge.stable { opacity: 1; box-shadow: 0 0 15px rgba(46, 213, 115, 0.2); }
+        
+        .audio-bars { display: none; gap: 3px; align-items: flex-end; height: 15px; margin-left: 5px; }
+        .audio-bars.playing { display: flex; }
+        .bar { width: 3px; background: #fff; animation: bounce 0.5s infinite alternate; }
+        .bar:nth-child(2) { animation-delay: 0.1s; }
+        .bar:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes bounce { to { height: 2px; } }
+
+        .book-icon { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; background: var(--surface); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.4); transition: all 0.2s ease; border: 1px solid rgba(255,255,255,0.1); z-index: 100; }
+        .book-icon:hover { transform: translateY(-5px) scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.6); border-color: var(--accent); }
+        
+        .guide-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); display: flex; flex-direction: column; align-items: center; padding: 40px 20px; box-sizing: border-box; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 1000; overflow-y: auto; }
+        .guide-modal.open { opacity: 1; pointer-events: auto; }
+        
+        .guide-header { text-align: center; margin-bottom: 30px; }
+        .guide-header h2 { font-size: 32px; margin: 0 0 10px 0; }
+        .guide-header p { color: #a0a0a0; margin: 0; }
+        
+        .guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; width: 100%; max-width: 1000px; transition: 0.3s;}
+        
+        .guide-card { background: var(--surface); border-radius: 16px; padding: 15px; text-align: center; border: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; cursor: pointer; position: relative; opacity: 0; transform: translateY(20px); }
+        .guide-modal.open .guide-card { animation: cardStagger 0.4s forwards; }
+        @keyframes cardStagger { to { opacity: 1; transform: translateY(0); } }
+        
+        .guide-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.2); }
+        .guide-card.live { border-color: var(--accent); box-shadow: 0 0 20px rgba(255, 71, 87, 0.3); }
+        .guide-card.live::before { content: '✓ LIVE'; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+        
+        /* Object-fit cover ensures images look perfect inside bounds without stretching */
+        .guide-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; transition: 0.2s; background: rgba(255,255,255,0.02); }
+        .guide-card:hover img { transform: scale(1.02); }
+        
+        .img-error-state { padding: 30px 10px; background: rgba(255,0,0,0.1); border-radius: 8px; color: #ff6b81; font-size: 12px; display: none; }
+        
+        .card-num { font-size: 24px; font-weight: bold; margin: 10px 0 5px; }
+        .card-char { font-size: 20px; color: var(--accent); }
+        .card-pin { font-size: 14px; color: #888; }
+        
+        .close-btn { position: absolute; top: 20px; right: 30px; font-size: 40px; color: #fff; cursor: pointer; }
+
+        footer.developer-branding { position: absolute; bottom: 30px; text-align: center; font-size: 14px; color: #888; letter-spacing: 0.5px; animation: brandFade 0.6s ease-out forwards; animation-delay: 1.5s; opacity: 0; transform: translateY(4px); z-index: 50; width: 100%; }
+        @keyframes brandFade { to { opacity: 1; transform: translateY(0); } }
+        footer.developer-branding span { font-weight: 600; color: #d0d0d0; }
+
+        .detail-view { display: none; flex-direction: column; align-items: center; background: var(--surface); padding: 40px; border-radius: 20px; max-width: 600px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; }
+        
+        /* Hero Image Setup */
+        .detail-view .img-container { width: 100%; max-height: 350px; overflow: hidden; border-radius: 12px; margin: 20px 0; background: #000; position: relative;}
+        .detail-view img { width: 100%; height: 100%; object-fit: contain; }
+        
+        .practice-btn { background: var(--accent); color: #fff; border: none; padding: 15px 30px; font-size: 18px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.2s; width: 100%;}
+        .practice-btn:hover { background: #ff2a3f; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); }
+        .back-btn { background: transparent; color: #a0a0a0; border: 1px solid #444; padding: 10px 20px; font-size: 14px; border-radius: 8px; cursor: pointer; margin-top: 15px; transition: 0.2s; width: 100%;}
+        .back-btn:hover { background: #333; color: #fff; }
+        
+        .practice-overlay { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); padding: 15px; border-radius: 16px; border: 1px solid var(--accent); display: none; flex-direction: column; align-items: center; z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .practice-overlay img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; margin: 10px 0; }
+        .practice-title { font-size: 12px; color: var(--accent); font-weight: bold; letter-spacing: 1px; text-transform: uppercase;}
+        
+        .practice-success-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(46, 213, 115, 0.2); z-index: 15; display: none; justify-content: center; align-items: center; pointer-events: none;}
+        .practice-success-overlay h2 { font-size: 60px; color: #2ed573; text-shadow: 0 0 20px rgba(46, 213, 115, 0.8); animation: popIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🤟 Chinese Counting</h1>
+        <p>Learn Chinese numbers through hand gestures</p>
+    </header>
+    
+    <div class="main-container">
+        <div class="camera-container" id="camera-container">
+            <div class="scanner"></div>
+            <img src="/video_feed" id="video">
+            <div class="status-overlay" id="status">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Camera Active</span>
+            </div>
+            
+            <div class="practice-overlay" id="practice-overlay">
+                <div class="practice-title">Copy This Gesture</div>
+                <img id="practice-img" src="" onerror="this.style.display='none'">
+                <div style="font-size: 24px; font-weight: bold;" id="practice-num"></div>
+                <button class="back-btn" onclick="stopPractice()" style="margin-top: 10px; padding: 5px;">Cancel</button>
+            </div>
+            
+            <div class="practice-success-overlay" id="practice-success">
+                <h2>✓ Correct!</h2>
+            </div>
+        </div>
+        
+        <div class="result-panel hidden" id="result-panel">
+            <div class="res-num" id="res-num">-</div>
+            <div class="res-char" id="res-char">-</div>
+            <div class="res-pin" id="res-pin">-</div>
+            <div class="success-badge" id="success-badge">✓ STABLE</div>
+            
+            <div style="display: flex; align-items: center; margin-top: 15px; color: #888; font-size: 12px;">
+                <span id="audio-text">Audio</span>
+                <div class="audio-bars" id="audio-bars">
+                    <div class="bar" style="height: 10px;"></div>
+                    <div class="bar" style="height: 15px;"></div>
+                    <div class="bar" style="height: 8px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="developer-branding">
+        Built by <span>Aman Gautam</span>
+    </footer>
+
+    <div class="book-icon" title="Learn the gestures" onclick="toggleGuide()">📖</div>
+
+    <div class="guide-modal" id="guide-modal">
+        <div class="close-btn" onclick="toggleGuide()">×</div>
+        
+        <div id="guide-main">
+            <div class="guide-header">
+                <h2>Chinese Number Gestures</h2>
+                <p>Learn the hand signs for numbers 1–10</p>
+            </div>
+            <div class="guide-grid" id="guide-grid">
+                <!-- Cards injected via JS -->
+            </div>
+        </div>
+        
+        <div class="detail-view" id="detail-view">
+            <h2 id="detail-title" style="margin: 0; font-size: 32px;">Gesture</h2>
+            <div style="display: flex; gap: 15px; margin-top: 10px; align-items: baseline;">
+                <span id="detail-char" style="font-size: 28px; color: var(--accent); font-weight: bold;"></span>
+                <span id="detail-pin" style="color: #a0a0a0; font-size: 20px;"></span>
+            </div>
+            
+            <div class="img-container">
+                <img id="detail-img" src="" onerror="handleImgError('detail-img', 'detail-error')">
+                <div id="detail-error" class="img-error-state">
+                    Gesture image unavailable.<br>File could not be loaded.
+                </div>
+            </div>
+            
+            <p style="color: #d0d0d0; font-size: 16px;">Make your hand look like the image above.</p>
+            <button class="practice-btn" onclick="startPractice()">Practice This Gesture</button>
+            <button class="back-btn" onclick="showGrid()">Back to Gestures</button>
+        </div>
+    </div>
+
+    <script>
+        const chars = {
+            1:['一','yī'], 2:['二','èr'], 3:['三','sān'], 4:['四','sì'], 5:['五','wǔ'],
+            6:['六','liù'], 7:['七','qqī'], 8:['八','bā'], 9:['九','jiǔ'], 10:['十','shí']
+        };
+        
+        // 1. Preload all gesture images on startup
+        const preloadedImages = {};
+        for(let i=1; i<=10; i++) {
+            const img = new Image();
+            img.src = `/assets/gestures/${i}.png`;
+            preloadedImages[i] = img;
+        }
+
+        function handleImgError(imgId, errorId) {
+            document.getElementById(imgId).style.display = 'none';
+            document.getElementById(errorId).style.display = 'block';
+            console.error(`Failed to load gesture asset for element: ${imgId}`);
+        }
+        
+        const grid = document.getElementById('guide-grid');
+        for(let i=1; i<=10; i++) {
+            let delay = (i * 0.05).toFixed(2);
+            grid.innerHTML += `
+                <div class="guide-card" id="card-${i}" style="animation-delay: ${delay}s" onclick="openDetail(${i})">
+                    <img id="thumb-${i}" src="/assets/gestures/${i}.png" onerror="handleImgError('thumb-${i}', 'error-${i}')">
+                    <div id="error-${i}" class="img-error-state">Missing Image</div>
+                    <div class="card-num">${i}</div>
+                    <div class="card-char">${chars[i][0]}</div>
+                    <div class="card-pin">${chars[i][1]}</div>
+                </div>
+            `;
+        }
+        
+        let guideOpen = false;
+        function toggleGuide() {
+            guideOpen = !guideOpen;
+            document.getElementById('guide-modal').classList.toggle('open');
+            if(!guideOpen) showGrid();
+        }
+        
+        let currentDetail = null;
+        function openDetail(num) {
+            currentDetail = num;
+            document.getElementById('guide-main').style.display = 'none';
+            document.getElementById('detail-view').style.display = 'flex';
+            
+            document.getElementById('detail-title').innerText = 'Gesture ' + num;
+            document.getElementById('detail-char').innerText = chars[num][0];
+            document.getElementById('detail-pin').innerText = chars[num][1];
+            
+            // Reset image/error state dynamically based on the requested number
+            document.getElementById('detail-img').style.display = 'block';
+            document.getElementById('detail-error').style.display = 'none';
+            document.getElementById('detail-img').src = `/assets/gestures/${num}.png`;
+        }
+        
+        function showGrid() {
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById('guide-main').style.display = 'block';
+        }
+        
+        let practiceTarget = null;
+        let practiceSuccessTimeout = null;
+        
+        function startPractice() {
+            practiceTarget = currentDetail;
+            toggleGuide();
+            
+            document.getElementById('practice-overlay').style.display = 'flex';
+            document.getElementById('practice-img').src = `/assets/gestures/${practiceTarget}.png`;
+            document.getElementById('practice-img').style.display = 'block';
+            document.getElementById('practice-num').innerText = `${practiceTarget} · ${chars[practiceTarget][0]}`;
+        }
+        
+        function stopPractice() {
+            practiceTarget = null;
+            document.getElementById('practice-overlay').style.display = 'none';
+        }
+
+        document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && guideOpen) toggleGuide(); });
+
+        const resPanel = document.getElementById('result-panel');
+        let lastNum = null;
+
+        setInterval(() => {
+            fetch('/state').then(r => r.json()).then(data => {
+                const camContainer = document.getElementById('camera-container');
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                
+                if (data.hand_detected) {
+                    camContainer.classList.remove('scanning');
+                    dot.className = 'status-dot active';
+                    text.innerText = data.stable ? '✓ Hand Detected' : 'Detecting...';
+                } else {
+                    camContainer.classList.add('scanning');
+                    dot.className = 'status-dot';
+                    text.innerText = '↕ Scanning for hand...';
+                }
+                
+                for(let i=1; i<=10; i++) {
+                    const c = document.getElementById(`card-${i}`);
+                    if(c) c.classList.remove('live');
+                }
+
+                if (data.number !== null) {
+                    resPanel.classList.remove('hidden');
+                    if (data.number !== lastNum) {
+                        resPanel.classList.remove('changed');
+                        void resPanel.offsetWidth;
+                        resPanel.classList.add('changed');
+                        
+                        document.getElementById('res-num').innerText = data.number;
+                        document.getElementById('res-char').innerText = chars[data.number][0];
+                        document.getElementById('res-pin').innerText = chars[data.number][1];
+                        
+                        const bars = document.getElementById('audio-bars');
+                        bars.classList.add('playing');
+                        document.getElementById('audio-text').innerText = 'Playing...';
+                        setTimeout(() => { 
+                            bars.classList.remove('playing'); 
+                            document.getElementById('audio-text').innerText = 'Audio';
+                        }, 1000);
+                        
+                        lastNum = data.number;
+                    }
+                    
+                    if(data.stable) {
+                        document.getElementById('success-badge').classList.add('stable');
+                        
+                        if (practiceTarget !== null && data.number === practiceTarget && !practiceSuccessTimeout) {
+                            const successOverlay = document.getElementById('practice-success');
+                            successOverlay.style.display = 'flex';
+                            
+                            practiceSuccessTimeout = setTimeout(() => {
+                                successOverlay.style.display = 'none';
+                                stopPractice();
+                                practiceSuccessTimeout = null;
+                            }, 2000);
+                        }
+                    } else {
+                        document.getElementById('success-badge').classList.remove('stable');
+                    }
+                    
+                    const liveCard = document.getElementById(`card-${data.number}`);
+                    if(liveCard) liveCard.classList.add('live');
+                    
+                } else {
+                    resPanel.classList.add('hidden');
+                    lastNum = null;
+                }
+            });
+        }, 150);
+    </script>
+</body>
+</html>
