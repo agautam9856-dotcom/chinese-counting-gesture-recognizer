@@ -1,4 +1,4 @@
-# 🖐️ Chinese Counting Gesture Recognizer
+# .🖐️. Chinese Counting Gesture Recognizer
 
 **Learn Chinese numbers through real-time hand gestures.**
 
